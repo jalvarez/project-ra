@@ -1,0 +1,9 @@
+.cache-*
+.classpath
+.project
+.settings/
+bin/
+src/test/resources/aemet-api.conf
+target/
+project/target/
+*.swp
