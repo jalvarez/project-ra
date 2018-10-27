@@ -32,8 +32,15 @@ class AemetExtractorSpec extends FlatSpec with Matchers with ScalaFutures {
     extractor.getDiaryClimateValues(stationId, fiveDaysAgo, fourDaysAgo).futureValue should not be empty
   }
   
+  it should "return diary predictions of a province" in new WithDateOperations {
+    val provinceCode = 38 // STA.CRUZ DE TENERIFE
+    val yesterday = new Date() - 1
+    
+    extractor.getDiaryPrediction(provinceCode, yesterday).futureValue.prediction should not be empty
+  }
+  
   trait WithDateOperations {
-    case class DateWithAdd(original: Date) {
+    case class DateWithArithmeticOperations(original: Date) {
       val calendar = Calendar.getInstance
       
       def + (days: Int): Date = {
@@ -45,6 +52,6 @@ class AemetExtractorSpec extends FlatSpec with Matchers with ScalaFutures {
       def - (days: Int): Date = this.+(-days)
     }
     
-    implicit def date2dateWitAdd(d: Date): DateWithAdd = DateWithAdd(d)
+    implicit def date2dateWitAdd(d: Date): DateWithArithmeticOperations = DateWithArithmeticOperations(d)
   }
 }

@@ -3,19 +3,15 @@ package com.projectRa
 import com.typesafe.config.ConfigFactory
 import dispatch._
 import scala.concurrent.ExecutionContext
-import org.asynchttpclient.DefaultAsyncHttpClientConfig.Builder
-import javax.net.ssl.SSLContext
-import javax.net.ssl.X509TrustManager
-import io.netty.handler.ssl.JdkSslContext
-import io.netty.handler.ssl.ClientAuth
-import java.security.cert.X509Certificate
+
 import spray.json._
 import model.external._
 import java.util.Date
 import utils.DateFormatters
 import org.slf4j.LoggerFactory
+import utils.HttpConfigTrustAllCertificates
 
-class AemetExtractor extends DateFormatters {
+class AemetExtractor extends DateFormatters with HttpConfigTrustAllCertificates {
   import AemetExtractor._
   
   lazy val config = ConfigFactory.load
@@ -23,6 +19,11 @@ class AemetExtractor extends DateFormatters {
   lazy val apiKey = config.getString("aemet.api-key")
   lazy val httpClient = Http.withConfiguration(trustAllCertificates)
   
+  /**
+   * Obtiene las estaciones
+   * 
+   * @return secuencia de estaciones
+   */
   def getStations(implicit ec: ExecutionContext): Future[Seq[Station]] = {
     val urlStations = url(baseUrl) / "valores" / "climatologicos" / "inventarioestaciones" / "todasestaciones"
 
@@ -33,6 +34,12 @@ class AemetExtractor extends DateFormatters {
     }
   }
   
+  /**
+   * Obtiene los valores observados de una estación en el momento actual
+   * 
+   * @param stationId id. del la estación
+   * @return secuencia de observaciones registradas
+   */
   def getConventionalObservation(stationId: String)(implicit ec: ExecutionContext): Future[Seq[Observation]] = {
     val conventionalObserv = url(baseUrl) / "observacion" / "convencional" / "datos" / "estacion" / stationId
     getResponseUsingApiKey(conventionalObserv).map { response =>
@@ -42,6 +49,15 @@ class AemetExtractor extends DateFormatters {
     }  
   }
   
+  /**
+   * Obtiene los valores climatológicos de una estación en un intervalo de tiempo
+   * 
+   * @param stationId id. de la estación
+   * @param from desde
+   * @param to hasta
+   * 
+   * @return una secuencia de valores climatológicos
+   */
   def getDiaryClimateValues(stationId: String, from: Date, to: Date)
                            (implicit ec: ExecutionContext): Future[Seq[DiaryClimateValue]] = {
 
@@ -62,6 +78,24 @@ class AemetExtractor extends DateFormatters {
     }
   }
   
+  /**
+   * Obtiene la predicción en lenguaje natural de una provincia para un día
+   * 
+   * @param provinceCode código de provincia
+   * @param day día de la predicción
+   * 
+   * @return predicción diaria
+   */
+  def getDiaryPrediction(provinceCode: Int, day: Date)
+                        (implicit ec: ExecutionContext): Future[DiaryPrediction] = {
+    implicit def date2String(date: Date): String = formatterDay.format(date)
+    
+    val diaryPredictions = url(baseUrl) / "prediccion" / "provincia" / "hoy" / provinceCode / "elaboracion" / day
+    getResponseUsingApiKey(diaryPredictions).map { response =>
+      DiaryPrediction(provinceCode, day, response)
+    }
+  }
+  
   private def getResponseUsingApiKey(req: Req)(implicit ec: ExecutionContext): Future[String] = {
     for (dataUrl <- httpClient(req.addQueryParameter("api_key", apiKey) OK as.String)
                       .map { _.parseJson.convertTo[ServiceResponse].datos };
@@ -71,25 +105,28 @@ class AemetExtractor extends DateFormatters {
         dataResponse
       }
   }
-  
-  private def trustAllCertificates(b: Builder): Builder = {
-    val sslContext = SSLContext.getInstance("SSL")
-    sslContext.init(null,
-                    Seq(new X509TrustManager {
-                          def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit = { }
-                          def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit = { }
-                          def getAcceptedIssuers() = { Array.empty[X509Certificate] }}).toArray,
-                    null)
-    b.setSslContext(new JdkSslContext(sslContext, true, ClientAuth.NONE))
-  }
-  
 }
 
 object AemetExtractor {
   lazy val logger = LoggerFactory.getLogger("com.projectRa.AemetExtractor")
   
+  /**
+   * Datos de la estación metereológica
+   * 
+   * @param id identificador
+   * @param name nombre
+   * @param provincia código de la provincia
+   * @param indsinop indicador sinóptico
+   */
   case class Station(id: String, name: String, province: String, indsinop: String)
   
+  /**
+   * Valores observados en una estación en un momento dado
+   * 
+   * @param stationId id. del la estación
+   * @param finishDate fecha final de la observación
+   * @param insolationMinutes minutos de insolación de la última hora
+   */
   case class Observation(stationId: String, finishDate: Date, insolationMinutes: Double)
  
   /**
@@ -107,4 +144,12 @@ object AemetExtractor {
                                averageTemperature: Double,
                                precipitationMm: Double)
                                
+  /**
+   * Predicción diaria por provincia en formato texto
+   * 
+   * @param provinceCode código de provincia
+   * @param day 
+   * @param predicción                            
+   */
+  case class DiaryPrediction(provinceCode: Int, day: Date, prediction: String)
 }
