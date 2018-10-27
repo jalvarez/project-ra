@@ -19,4 +19,11 @@ package object external extends DefaultJsonProtocol {
                           fint: String,
                           inso: Double)
   implicit val observationFormat = jsonFormat3(Observation)
+  
+  case class DiaryClimateValue(indicativo: String,
+                               fecha: String,
+                               prec: String,
+                               sol: String,
+                               tmed: String)
+  implicit val diaryClimateValueFormat = jsonFormat5(DiaryClimateValue)
 }
