@@ -11,7 +11,7 @@ import java.util.Calendar
 class AemetHttpExtractorSpec extends FlatSpec with Matchers with ScalaFutures {
   implicit val defaultPatience = PatienceConfig(10 seconds)
       
-  val extractor = new AemetHttpExtractor()
+  val extractor = new AemetHttpExtractor with AemetWebServicesHttpProxy
   
   it should "return data of stations" in {
     extractor.getStations.futureValue should not be empty  

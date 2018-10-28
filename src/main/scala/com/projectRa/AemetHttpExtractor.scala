@@ -11,14 +11,12 @@ import utils.DateFormatters
 import org.slf4j.LoggerFactory
 import utils.HttpConfigTrustAllCertificates
 
-class AemetHttpExtractor extends AemetExtractor with DateFormatters with HttpConfigTrustAllCertificates {
+trait AemetHttpExtractor extends AemetExtractor with DateFormatters { this: AemetWebServicesProxy =>
   import AemetHttpExtractor._
   import AemetExtractor._
   
-  lazy val config = ConfigFactory.load
   lazy val baseUrl = config.getString("aemet.url")
   lazy val apiKey = config.getString("aemet.api-key")
-  lazy val httpClient = Http.withConfiguration(trustAllCertificates)
   
   override def getStations(implicit ec: ExecutionContext): Future[Seq[Station]] = {
     val urlStations = url(baseUrl) / "valores" / "climatologicos" / "inventarioestaciones" / "todasestaciones"
@@ -68,19 +66,10 @@ class AemetHttpExtractor extends AemetExtractor with DateFormatters with HttpCon
     getResponseUsingApiKey(diaryPredictions).map { response =>
       DiaryPrediction(provinceCode, day, response)
     }
-  }
-  
-  private def getResponseUsingApiKey(req: Req)(implicit ec: ExecutionContext): Future[String] = {
-    for (dataUrl <- httpClient(req.addQueryParameter("api_key", apiKey) OK as.String)
-                      .map { _.parseJson.convertTo[ServiceResponse].datos };
-         dataResponse <- httpClient(url(dataUrl) OK as.String))
-      yield {
-        if (logger.isDebugEnabled) logger.debug(dataResponse)
-        dataResponse
-      }
-  }
+  }  
 }
 
 object AemetHttpExtractor {
   lazy val logger = LoggerFactory.getLogger("com.projectRa.AemetHttpExtractor")
+  lazy val config = ConfigFactory.load
 }
