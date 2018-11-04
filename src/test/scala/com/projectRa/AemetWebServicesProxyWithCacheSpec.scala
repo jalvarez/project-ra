@@ -3,7 +3,7 @@ package com.projectRa
 import org.scalamock.scalatest.MockFactory
 import org.scalatest.FlatSpec
 import org.scalatest.concurrent.ScalaFutures
-import utils.HttpRequestCache
+import utils.HttpRequestStore
 import dispatch._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
@@ -11,7 +11,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.Matchers
 
 class AemetWebServicesProxyWithCacheSpec extends FlatSpec with Matchers with MockFactory with ScalaFutures {
-  it should "invoke cache before to get response" in new UnderlyingProxyAndCacheMocks 
+  it should "get response from request store" in new UnderlyingProxyAndStoreMocks 
                                                       with ProxyWithCache
                                                       with ExampleValues {
     
@@ -19,63 +19,86 @@ class AemetWebServicesProxyWithCacheSpec extends FlatSpec with Matchers with Moc
                     .expects(*, *)
                     .never
     
-    (requestCache.getResponse (_:Req)(_: ExecutionContext))
-                 .expects(*,*)
-                 .returning(Future.successful(Some(cachedResponse)))
-                 .once
+    (store.getResponse (_:Req)(_: ExecutionContext))
+          .expects(*,*)
+          .returning(Future.successful(Some(cachedResponse)))
+          .once
     
     proxy.getResponseUsingApiKey(url(exampleUrl)).futureValue
   }
   
-  it should "return value store in cache" in new UnderlyingProxyAndCacheStubs 
+  it should "return value stored for request" in new UnderlyingProxyAndStoreStubs 
                                               with ProxyWithCache
                                               with ExampleValues {
     
     (underlyingProxy.getResponseUsingApiKey(_:Req)(_: ExecutionContext))
-                        .when(*, *)
-                        .returning(Future.successful(exampleResponse))
+                    .when(*, *)
+                    .returning(Future.successful(exampleResponse))
     
-    (requestCache.getResponse (_:Req)(_: ExecutionContext))
-              .when(*,*)
-              .returning(Future.successful(Some(cachedResponse)))
+    (store.getResponse (_:Req)(_: ExecutionContext))
+          .when(*,*)
+          .returning(Future.successful(Some(cachedResponse)))
     
     proxy.getResponseUsingApiKey(url(exampleUrl)).futureValue shouldBe cachedResponse
   }
   
-  it should "return underlying proxy if request isn't onto cache" in new UnderlyingProxyAndCacheStubs 
-                                                                  with ProxyWithCache
-                                                                  with ExampleValues {
+  it should "return underlying proxy if request isn't onto storage" in new UnderlyingProxyAndStoreStubs 
+                                                                       with ProxyWithCache
+                                                                       with ExampleValues {
     
     (underlyingProxy.getResponseUsingApiKey(_:Req)(_: ExecutionContext))
-                        .when(*, *)
-                        .returning(Future.successful(exampleResponse))
+                    .when(*, *)
+                    .returning(Future.successful(exampleResponse))
     
-    (requestCache.getResponse (_:Req)(_: ExecutionContext))
-              .when(*,*)
-              .returning(Future.successful(None))
+    (store.getResponse (_:Req)(_: ExecutionContext))
+          .when(*,*)
+          .returning(Future.successful(None))
+          
+    (store.putResponse (_:Req, _:String)(_: ExecutionContext))
+          .when(*,*,*)
+          .returning(Future.successful(false))
     
     proxy.getResponseUsingApiKey(url(exampleUrl)).futureValue shouldBe exampleResponse
   }
   
-  trait ProxyWithCache { this: UnderlyingProxyAndCache =>
+  it should "put request on store if it isn't onto storage" in new UnderlyingProxyAndStoreMocks 
+                                                               with ProxyWithCache
+                                                               with ExampleValues {
+    
+    (underlyingProxy.getResponseUsingApiKey(_:Req)(_: ExecutionContext))
+                    .expects(*, *)
+                    .returning(Future.successful(exampleResponse))
+    
+    (store.getResponse (_:Req)(_: ExecutionContext))
+          .expects(*,*)
+          .returning(Future.successful(None))
+          
+    (store.putResponse (_:Req, _:String)(_: ExecutionContext))
+          .expects(*,*,*)
+          .returning(Future.successful(false))
+    
+    proxy.getResponseUsingApiKey(url(exampleUrl)).futureValue
+  }  
+  
+  trait ProxyWithCache { this: UnderlyingProxyAndStore =>
     val proxy = new AemetWebServicesProxyWithCache {
       override val underlying = underlyingProxy
-      override val cache = requestCache
+      override val requestStore = store
     }
   }
   
-  trait UnderlyingProxyAndCacheStubs extends UnderlyingProxyAndCache {
-    override val requestCache = stub[HttpRequestCache]
+  trait UnderlyingProxyAndStoreStubs extends UnderlyingProxyAndStore {
+    override val store = stub[HttpRequestStore]
     override val underlyingProxy = stub[AemetWebServicesProxy]
   }
   
-  trait UnderlyingProxyAndCacheMocks extends UnderlyingProxyAndCache {
-    override val requestCache = mock[HttpRequestCache]
+  trait UnderlyingProxyAndStoreMocks extends UnderlyingProxyAndStore {
+    override val store = mock[HttpRequestStore]
     override val underlyingProxy = mock[AemetWebServicesProxy]
   }
   
-  trait UnderlyingProxyAndCache {
-    val requestCache: HttpRequestCache
+  trait UnderlyingProxyAndStore {
+    val store: HttpRequestStore
     val underlyingProxy: AemetWebServicesProxy
   }
   
