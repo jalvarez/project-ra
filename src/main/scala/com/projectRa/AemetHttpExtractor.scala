@@ -10,6 +10,7 @@ import java.util.Date
 import utils.DateFormatters
 import org.slf4j.LoggerFactory
 import utils.HttpConfigTrustAllCertificates
+import scala.util.Try
 
 trait AemetHttpExtractor extends AemetExtractor with DateFormatters { this: AemetWebServicesProxy =>
   import AemetHttpExtractor._
@@ -33,7 +34,7 @@ trait AemetHttpExtractor extends AemetExtractor with DateFormatters { this: Aeme
     val conventionalObserv = url(baseUrl) / "observacion" / "convencional" / "datos" / "estacion" / stationId
     getResponseUsingApiKey(conventionalObserv).map { response =>
       response.parseJson.convertTo[Seq[model.external.Observation]].map { s => 
-        Observation(s.idema, formatterTimestamp.parse(s.fint), s.inso)
+        Observation(s.idema, formatterTimestamp.parse(s.fint), Some(s.inso))
       }
     }  
   }
@@ -42,7 +43,7 @@ trait AemetHttpExtractor extends AemetExtractor with DateFormatters { this: Aeme
                                     (implicit ec: ExecutionContext): Future[Seq[DiaryClimateValue]] = {
 
     implicit def date2String(date: Date): String = formatterTimestampUTC.format(date)
-    def string2Double(str: String): Double = str.replaceAll(",", ".").toDouble
+    def string2Double(str: String): Option[Double] = Try(str.replaceAll(",", ".").toDouble).toOption
     
     val diaryClimateValues = url(baseUrl) / "valores" / "climatologicos" / "diarios" / "datos" / 
                                           "fechaini" / from / "fechafin"/ to / "estacion" / stationId

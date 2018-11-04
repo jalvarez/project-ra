@@ -64,7 +64,9 @@ object AemetExtractor {
    * @param finishDate fecha final de la observación
    * @param insolationMinutes minutos de insolación de la última hora
    */
-  case class Observation(stationId: String, finishDate: Date, insolationMinutes: Double)
+  case class Observation(stationId: String,
+                         finishDate: Date,
+                         insolationMinutes: Option[Double])
  
   /**
    * Climatologías diarias
@@ -77,9 +79,9 @@ object AemetExtractor {
    */
   case class DiaryClimateValue(stationId: String,
                                day: Date,
-                               insolationHours: Double,
-                               averageTemperature: Double,
-                               precipitationMm: Double)
+                               insolationHours: Option[Double],
+                               averageTemperature: Option[Double],
+                               precipitationMm: Option[Double])
                                
   /**
    * Predicción diaria por provincia en formato texto
